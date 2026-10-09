@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.YTDownloader" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#D32F2F</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+    </style>
+</resources>
