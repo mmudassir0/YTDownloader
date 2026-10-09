@@ -105,10 +105,40 @@
                     android:layout_marginBottom="12dp"
                     android:textAppearance="?attr/textAppearanceBodySmall" />
 
+                <LinearLayout
+                    android:id="@+id/qualityRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="8dp"
+                        android:text="Quality" />
+
+                    <Spinner
+                        android:id="@+id/qualitySpinner"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1" />
+                </LinearLayout>
+
                 <Spinner
                     android:id="@+id/formatSpinner"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/sizeText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textStyle="bold"
                     android:visibility="gone" />
 
                 <com.google.android.material.button.MaterialButton
@@ -119,27 +149,7 @@
                     android:text="Download"
                     android:visibility="gone" />
 
-                <RadioGroup
-                    android:id="@+id/playlistOptions"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:visibility="gone">
 
-                    <RadioButton
-                        android:id="@+id/videoRadio"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checked="true"
-                        android:text="Best video" />
-
-                    <RadioButton
-                        android:id="@+id/audioOnlyRadio"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
-                        android:text="Audio only" />
-                </RadioGroup>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/downloadAllButton"

@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,15 +18,29 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import com.mudassir.ytdownloader.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
-import org.schabi.newpipe.extractor.NewPipe
+import java.util.concurrent.atomic.AtomicInteger
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var b: ActivityMainBinding
+    private var videoUrl: String? = null
     private var video: VideoDetails? = null
     private var playlist: PlaylistDetails? = null
+    private var playlistUrl: String? = null
+    private var sizeJob: Job? = null
+
+    /** Playlist quality choices: label to max height (0 = audio only). */
+    private val playlistQualities = listOf(
+        "1080p" to 1080, "720p" to 720, "480p" to 480, "360p" to 360, "Audio only" to 0
+    )
+
+    /** Per-video resolved options, filled while calculating the playlist size. */
+    private val resolved = mutableMapOf<String, List<DownloadOption>>()
 
     private val askPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -34,14 +49,25 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityMainBinding.inflate(layoutInflater)
         setContentView(b.root)
-
-        NewPipe.init(OkHttpDownloader.instance)
         requestNeededPermissions()
 
         b.pasteButton.setOnClickListener { pasteFromClipboard() }
         b.fetchButton.setOnClickListener { fetch() }
         b.downloadButton.setOnClickListener { downloadSelectedVideo() }
         b.downloadAllButton.setOnClickListener { downloadPlaylist() }
+
+        b.formatSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) = updateVideoSize()
+            override fun onNothingSelected(p: AdapterView<*>?) {}
+        }
+        b.qualitySpinner.adapter = ArrayAdapter(
+            this, android.R.layout.simple_spinner_dropdown_item, playlistQualities.map { it.first }
+        )
+        b.qualitySpinner.setSelection(1)
+        b.qualitySpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) = updatePlaylistSize()
+            override fun onNothingSelected(p: AdapterView<*>?) {}
+        }
 
         handleShareIntent(intent)
     }
@@ -51,7 +77,6 @@ class MainActivity : AppCompatActivity() {
         handleShareIntent(intent)
     }
 
-    /** Opened via "Share → YTDownloader" from the YouTube app. */
     private fun handleShareIntent(intent: Intent?) {
         if (intent?.action != Intent.ACTION_SEND) return
         val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
@@ -79,15 +104,17 @@ class MainActivity : AppCompatActivity() {
             try {
                 if (YouTube.isPlaylist(url)) {
                     val pl = withContext(Dispatchers.IO) {
-                        YouTube.getPlaylist(url) { count ->
-                            runOnUiThread { b.statusText.text = "Loading playlist… $count videos" }
+                        YouTube.getPlaylist(url) { n ->
+                            runOnUiThread { b.statusText.text = "Loading playlist… $n videos" }
                         }
                     }
                     playlist = pl
+                    playlistUrl = url
                     showPlaylist(pl)
                 } else {
                     val v = withContext(Dispatchers.IO) { YouTube.getVideo(url) }
                     video = v
+                    videoUrl = url
                     showVideo(v)
                 }
             } catch (e: Exception) {
@@ -99,6 +126,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ---------- single video ----------
+
     private fun showVideo(v: VideoDetails) {
         b.titleText.text = v.title
         b.subtitleText.text = "${v.uploader} • ${formatDuration(v.durationSec)}"
@@ -109,67 +138,116 @@ class MainActivity : AppCompatActivity() {
             return
         }
         b.formatSpinner.adapter = ArrayAdapter(
-            this, android.R.layout.simple_spinner_dropdown_item, v.options.map { it.label }
+            this, android.R.layout.simple_spinner_dropdown_item, v.options.map { it.displayLabel }
         )
+        // Default to 720p if available, else the best one.
+        val def = v.options.indexOfFirst { it.kind != Kind.AUDIO && it.height <= 720 }.takeIf { it >= 0 } ?: 0
+        b.formatSpinner.setSelection(def)
         b.formatSpinner.isVisible = true
         b.downloadButton.isVisible = true
+        b.sizeText.isVisible = true
+        updateVideoSize()
     }
 
-    private fun showPlaylist(pl: PlaylistDetails) {
-        b.titleText.text = pl.name
-        b.subtitleText.text = "${pl.videos.size} videos"
-        b.videoCard.isVisible = true
-        b.playlistOptions.isVisible = true
-        b.downloadAllButton.isVisible = true
+    private fun updateVideoSize() {
+        val opt = video?.options?.getOrNull(b.formatSpinner.selectedItemPosition) ?: return
+        b.sizeText.text = sizeLine(opt.bytes, exact = true)
     }
 
     private fun downloadSelectedVideo() {
         val v = video ?: return
-        val option = v.options.getOrNull(b.formatSpinner.selectedItemPosition) ?: return
-        FileSaver.enqueue(this, option, v.title)
-        toast("Downloading to Downloads/${FileSaver.FOLDER}")
+        val url = videoUrl ?: return
+        val opt = v.options.getOrNull(b.formatSpinner.selectedItemPosition) ?: return
+        val maxHeight = if (opt.kind == Kind.AUDIO) 0 else opt.height
+        DownloadWorker.enqueue(this, url, v.title, maxHeight)
+        toast("Download started. Progress is in your notifications")
+    }
+
+    // ---------- playlist ----------
+
+    private fun showPlaylist(pl: PlaylistDetails) {
+        b.titleText.text = pl.name
+        val totalSec = pl.videos.sumOf { maxOf(it.duration, 0L) }
+        b.subtitleText.text = "${pl.videos.size} videos • ${formatDuration(totalSec)} total"
+        b.videoCard.isVisible = true
+        b.qualityRow.isVisible = true
+        b.downloadAllButton.isVisible = true
+        b.sizeText.isVisible = true
+        calculatePlaylistSize(pl)
+    }
+
+    /** Looks up every video once (4 at a time) so we can show the exact total size. */
+    private fun calculatePlaylistSize(pl: PlaylistDetails) {
+        sizeJob?.cancel()
+        resolved.clear()
+        val done = AtomicInteger(0)
+        b.sizeText.text = "Calculating size… 0 / ${pl.videos.size}"
+        sizeJob = lifecycleScope.launch {
+            val gate = Semaphore(4)
+            val jobs = pl.videos.map { item ->
+                launch(Dispatchers.IO) {
+                    gate.withPermit {
+                        runCatching { YouTube.getVideo(item.url).options }
+                            .onSuccess { synchronized(resolved) { resolved[item.url] = it } }
+                        val n = done.incrementAndGet()
+                        withContext(Dispatchers.Main) {
+                            if (n < pl.videos.size) b.sizeText.text = "Calculating size… $n / ${pl.videos.size}"
+                        }
+                    }
+                }
+            }
+            jobs.forEach { it.join() }
+            updatePlaylistSize()
+        }
+    }
+
+    private fun updatePlaylistSize() {
+        val pl = playlist ?: return
+        if (sizeJob?.isActive == true) return
+        val maxHeight = playlistQualities[b.qualitySpinner.selectedItemPosition].second
+        var total = 0L
+        var unknown = 0
+        pl.videos.forEach { item ->
+            val opt = resolved[item.url]?.let { YouTube.pickBest(it, maxHeight) }
+            if (opt == null || opt.bytes <= 0) unknown++ else total += opt.bytes
+        }
+        val extra = if (unknown > 0) "\n$unknown video(s) unavailable or size unknown" else ""
+        b.sizeText.text = sizeLine(total, exact = unknown == 0) + extra
     }
 
     private fun downloadPlaylist() {
         val pl = playlist ?: return
-        val audioOnly = b.audioOnlyRadio.isChecked
-        setLoading(true, "Queuing 0 / ${pl.videos.size}…")
-        b.downloadAllButton.isEnabled = false
-
-        lifecycleScope.launch {
-            var queued = 0
-            var failed = 0
-            pl.videos.forEachIndexed { i, item ->
-                try {
-                    val details = withContext(Dispatchers.IO) { YouTube.getVideo(item.url) }
-                    val best = YouTube.pickBest(details.options, audioOnly)
-                    if (best != null) {
-                        val numbered = "%03d - %s".format(i + 1, details.title)
-                        FileSaver.enqueue(this@MainActivity, best, numbered, pl.name)
-                        queued++
-                    } else failed++
-                } catch (e: Exception) {
-                    failed++
-                }
-                b.statusText.text = "Queuing ${i + 1} / ${pl.videos.size}…"
-            }
-            setLoading(false)
-            b.downloadAllButton.isEnabled = true
-            b.statusText.text = "Queued $queued downloads" +
-                (if (failed > 0) ", $failed skipped (private/unavailable)" else "") +
-                ". Saving to Downloads/${FileSaver.FOLDER}/${pl.name}"
-            b.statusText.isVisible = true
+        val maxHeight = playlistQualities[b.qualitySpinner.selectedItemPosition].second
+        pl.videos.forEachIndexed { i, item ->
+            DownloadWorker.enqueue(
+                this, item.url, item.name, maxHeight,
+                prefix = "%03d".format(i + 1), folder = pl.name
+            )
         }
+        b.statusText.text = "Queued ${pl.videos.size} videos. They download one by one, " +
+            "even if you close the app. Saving to Downloads/${Storage.FOLDER}/${Storage.sanitize(pl.name)}"
+        b.statusText.isVisible = true
+    }
+
+    // ---------- helpers ----------
+
+    private fun sizeLine(bytes: Long, exact: Boolean): String {
+        val free = Storage.freeBytes()
+        val size = if (bytes > 0) (if (exact) "" else "≈ ") + formatBytes(bytes) else "unknown"
+        val warn = if (bytes > 0 && free in 0 until bytes * 2) "  ⚠ not enough space" else ""
+        return "Data needed: $size   •   Free on phone: ${formatBytes(free)}$warn"
     }
 
     private fun resetResults() {
-        video = null
-        playlist = null
+        sizeJob?.cancel()
+        video = null; videoUrl = null
+        playlist = null; playlistUrl = null
         b.videoCard.isVisible = false
         b.formatSpinner.isVisible = false
         b.downloadButton.isVisible = false
-        b.playlistOptions.isVisible = false
+        b.qualityRow.isVisible = false
         b.downloadAllButton.isVisible = false
+        b.sizeText.isVisible = false
         b.statusText.isVisible = false
     }
 

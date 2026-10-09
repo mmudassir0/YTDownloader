@@ -6,7 +6,8 @@ so there is no server or API key.
 
 ## Features
 - Paste a link, or **Share → YT Downloader** from the YouTube app
-- Single video: pick a format (video+audio up to whatever YouTube serves as one file, usually 360p–720p, or audio-only)
+- Single video: pick 1080p, 720p, 480p, 360p or audio-only; the download size and free space are shown before you start
+- HD (720p/1080p) is downloaded as separate video + audio and merged on the phone (no quality loss)
 - Playlist: "Best video" or "Audio only" for every video, saved into a folder named after the playlist, numbered in order
 - Progress shows in the notification shade (Android DownloadManager)
 
@@ -39,8 +40,6 @@ open the repo's **Actions** tab → latest run → download the `YTDownloader-ap
 4. Open the app and allow notifications so you can see download progress.
 
 ## Notes / limits
-- 1080p+ on YouTube comes as separate video and audio tracks that need merging (ffmpeg);
-  this version sticks to single-file formats. Adding FFmpeg merging is the natural next step.
 - If downloads start failing after a while, YouTube changed something: bump the
   `NewPipeExtractor` version in `app/build.gradle.kts` to the latest release and rebuild.
 - For personal use. Downloading may conflict with YouTube's Terms of Service; only download
