@@ -6,15 +6,23 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch PSX pages
+      - name: Fetch PSX with token
         run: |
           mkdir out
           UA="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36"
-          for p in "/static/script.js?v=1.76" "/historical" "/graphical-view" "/sector-summary"; do
-            f=$(echo "$p" | tr '/' '_'); [ "$f" = "_" ] && f="_home"
-            code=$(curl -sS -L -A "$UA" -o "out/$f" -w "%{http_code} %{content_type} %{size_download}" "https://dps.psx.com.pk$p" || echo fail)
-            echo "$p -> $code" | tee -a out/index.txt
+          J=cookies.txt
+          curl -sS -c $J -b $J -A "$UA" -D out/home_headers.txt -o home.html https://dps.psx.com.pk/company/LUCK
+          K=$(grep -oE '"_k":"[^"]+"' home.html | cut -d'"' -f4)
+          echo "token=$K" | tee out/index.txt
+          for p in "/timeseries/eod/LUCK" "/timeseries/int/LUCK" "/timeseries/eod/KSE100" "/timeseries/int/KSE100" "/symbols" "/indices/KSE100" "/trading-board/REG/main"; do
+            f=$(echo "$p" | tr '/' '_')
+            code=$(curl -sS -b $J -c $J -A "$UA" -H "X-Req-Id: $K" -H "X-Requested-With: XMLHttpRequest" -H "Referer: https://dps.psx.com.pk/company/LUCK" -H "Accept: application/json, text/javascript, */*; q=0.01" -o "out/$f" -w "%{http_code} %{content_type} %{size_download}" "https://dps.psx.com.pk$p")
+            echo "$p (token+cookie) -> $code" | tee -a out/index.txt
           done
+          code=$(curl -sS -A "$UA" -H "X-Req-Id: $K" -H "X-Requested-With: XMLHttpRequest" -o out/nocookie -w "%{http_code} %{size_download}" "https://dps.psx.com.pk/timeseries/eod/LUCK"); echo "eod token-only -> $code" | tee -a out/index.txt
+          code=$(curl -sS -b $J -A "$UA" -H "X-Requested-With: XMLHttpRequest" -o out/notoken -w "%{http_code} %{size_download}" "https://dps.psx.com.pk/timeseries/eod/LUCK"); echo "eod cookie-only -> $code" | tee -a out/index.txt
+          cp $J out/cookies.txt
+          head -c 600 out/_timeseries_eod_LUCK; echo
       - uses: actions/checkout@v4
         with:
           path: repo
