@@ -53,8 +53,18 @@ class GetFragment : Fragment() {
     private val backCallback = object : OnBackPressedCallback(false) {
         override fun handleOnBackPressed() {
             vm.goBack()
-            isEnabled = vm.canGoBack
+            updateBack()
         }
+    }
+
+    /** Back steps through screens only while this tab is the one being shown. */
+    private fun updateBack() {
+        backCallback.isEnabled = !isHidden && vm.canGoBack
+    }
+
+    override fun onHiddenChanged(hidden: Boolean) {
+        super.onHiddenChanged(hidden)
+        updateBack()
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, s: Bundle?): View {
@@ -76,6 +86,7 @@ class GetFragment : Fragment() {
         headerAdapter = SingleViewAdapter(h.root)
         footerAdapter = SingleViewAdapter(footer.root).apply { shown = false }
         b.results.layoutManager = LinearLayoutManager(requireContext())
+        b.results.itemAnimator = null // header/footer views are reused; no remove/insert animations
         b.results.adapter = ConcatAdapter(headerAdapter, videos, footerAdapter)
         b.results.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
@@ -151,7 +162,7 @@ class GetFragment : Fragment() {
     private var renderedList: Any? = null
 
     private fun render(state: GetState) {
-        backCallback.isEnabled = vm.canGoBack
+        updateBack()
         b.progress.isVisible = state is GetState.Loading
         b.goButton.isEnabled = state !is GetState.Loading
         b.statusText.isVisible = state is GetState.Loading || state is GetState.Error

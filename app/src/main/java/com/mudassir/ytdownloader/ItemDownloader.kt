@@ -88,10 +88,15 @@ class ItemDownloader(private val ctx: Context) {
                 } else v.renameTo(out)
             }
             Kind.AUDIO -> {
-                val audio = if (cuts.isNotEmpty()) {
-                    meter.stage("Removing ${cuts.size} sponsor segment(s)…")
-                    File(partial, "cut.m4a").also { Remux.run(listOf(Remux.Source(a, "audio/")), it, false, cuts) }
-                } else a
+                // YouTube serves fragmented MP4; a plain MP4 seeks better and shows tags everywhere.
+                meter.stage(if (cuts.isEmpty()) "Preparing audio…" else "Removing ${cuts.size} sponsor segment(s)…")
+                val remuxed = File(partial, "remux.m4a")
+                val audio = try {
+                    Remux.run(listOf(Remux.Source(a, "audio/")), remuxed, false, cuts)
+                    remuxed
+                } catch (e: Exception) {
+                    a // keep the original if the phone can't remux it
+                }
                 meter.stage("Adding title and cover art…")
                 try {
                     Mp4Tagger.tag(audio, out, details.title, details.uploader, item.folder ?: details.uploader, cover(details.id))

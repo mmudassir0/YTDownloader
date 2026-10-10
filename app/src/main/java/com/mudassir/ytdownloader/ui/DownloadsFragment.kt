@@ -82,7 +82,6 @@ class DownloadsFragment : Fragment() {
         val paused = Settings(ctx).paused
         // Active first (in queue order), then finished, newest first.
         val sorted = items.filter { it.isActive } + items.filter { !it.isActive }.sortedByDescending { it.finishedAt }
-        adapter.progress = prog
         adapter.submitList(sorted.map { Row(it, prog[it.id]) })
 
         val running = items.count { it.status == Status.RUNNING }
@@ -119,8 +118,6 @@ class DownloadsFragment : Fragment() {
     data class Row(val item: DownloadItem, val progress: Progress?)
 
     inner class Adapter : ListAdapter<Row, Adapter.Holder>(DIFF) {
-        var progress: Map<String, Progress> = emptyMap()
-
         inner class Holder(val b: ItemDownloadBinding) : RecyclerView.ViewHolder(b.root)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =

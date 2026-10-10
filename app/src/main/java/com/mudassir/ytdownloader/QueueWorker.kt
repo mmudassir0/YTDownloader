@@ -36,7 +36,12 @@ class QueueWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
     private val failed = AtomicInteger(0)
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        setForeground(foregroundInfo("Starting downloads…", -1))
+        try {
+            setForeground(foregroundInfo("Starting downloads…", -1))
+        } catch (e: Exception) {
+            // Android 12+ may refuse a foreground start from the background (e.g. nightly sync).
+            // Keep going: the system may stop us early, and the queue then resumes later.
+        }
         try {
             coroutineScope {
                 val ticker = launch {
@@ -58,9 +63,9 @@ class QueueWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
                 Store.update(item.id) { if (it.status == Status.RUNNING) it.copy(status = Status.QUEUED) else it }
                 Store.setProgress(item.id, null)
             }
+            nm.cancel(NOTIF_PROGRESS)
+            summary()
         }
-        nm.cancel(NOTIF_PROGRESS)
-        summary()
         Result.success()
     }
 
@@ -154,8 +159,9 @@ class QueueWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
     private fun summary() {
         val s = saved.get()
         val f = failed.get()
-        if (s + f == 0) return
         val paused = Settings(applicationContext).paused
+        if (s + f == 0 && !paused) return
+        val waiting = !paused && Store.hasQueued() // e.g. stopped because Wi-Fi was lost
         val text = buildList {
             if (s > 0) add("$s saved")
             if (f > 0) add("$f failed")
@@ -163,7 +169,13 @@ class QueueWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
         }.joinToString(" · ")
         val b = NotificationCompat.Builder(applicationContext, App.CH_DONE)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle(if (paused) "Downloads paused" else "Downloads finished")
+            .setContentTitle(
+                when {
+                    paused -> "Downloads paused"
+                    waiting -> "Downloads waiting for network"
+                    else -> "Downloads finished"
+                }
+            )
             .setContentText(text)
             .setContentIntent(App.openApp(applicationContext, MainActivity.TAB_DOWNLOADS))
             .setAutoCancel(true)

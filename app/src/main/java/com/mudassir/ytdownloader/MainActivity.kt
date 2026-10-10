@@ -61,6 +61,19 @@ class MainActivity : AppCompatActivity() {
         }
         b.bottomNav.setOnItemSelectedListener { show(it.itemId); true }
 
+        // Back on another tab returns to Get; on Get it steps back or leaves the app.
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (b.bottomNav.selectedItemId != R.id.nav_get) {
+                    select(R.id.nav_get)
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+        })
+
         handleIntent(intent)
         maybeCheckForUpdates()
     }
