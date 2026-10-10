@@ -45,7 +45,7 @@ Requires JDK 17 and the Android SDK (`ANDROID_HOME` set).
 ```bash
 ./gradlew assembleRelease        # Windows: gradlew.bat assembleRelease
 ```
-APK: `app/build/outputs/apk/release/app-release.apk` (signed with the debug key so it installs directly).
+APK: `app/build/outputs/apk/release/app-release.apk` (signed with the committed key, so it installs over earlier builds).
 
 ### Option C — GitHub Actions (no PC needed)
 Every push builds the APK. Pushes to `main` also publish it as the latest **Release**,
