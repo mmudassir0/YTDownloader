@@ -69,6 +69,8 @@ class GetFragment : Fragment() {
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, s: Bundle?): View {
         _b = FragmentGetBinding.inflate(inflater, container, false)
+        // The RecyclerView needs its LayoutManager before views can be inflated against it.
+        b.results.layoutManager = LinearLayoutManager(requireContext())
         h = ViewGetHeaderBinding.inflate(inflater, b.results, false)
         footer = ItemFooterBinding.inflate(inflater, b.results, false)
         return b.root
@@ -85,7 +87,6 @@ class GetFragment : Fragment() {
         }
         headerAdapter = SingleViewAdapter(h.root)
         footerAdapter = SingleViewAdapter(footer.root).apply { shown = false }
-        b.results.layoutManager = LinearLayoutManager(requireContext())
         b.results.itemAnimator = null // header/footer views are reused; no remove/insert animations
         b.results.adapter = ConcatAdapter(headerAdapter, videos, footerAdapter)
         b.results.addOnScrollListener(object : RecyclerView.OnScrollListener() {
