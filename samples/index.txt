@@ -1,0 +1,11 @@
+/ -> 200 text/html; charset=utf-8 95379
+/screener -> 200 text/html; charset=utf-8 694735
+/indices -> 200 text/html; charset=utf-8 56310
+/company/LUCK -> 200 text/html; charset=utf-8 68216
+/timeseries/eod/LUCK -> 404 text/html; charset=utf-8 47165
+/timeseries/int/LUCK -> 404 text/html; charset=utf-8 47165
+/timeseries/eod/KSE100 -> 404 text/html; charset=utf-8 47167
+/timeseries/int/KSE100 -> 404 text/html; charset=utf-8 47167
+/market-watch -> 404 text/html; charset=utf-8 47158
+/sector-summary -> 200 text/html; charset=utf-8 47464
+/trading-board/REG/main -> 404 text/html; charset=utf-8 47168
