@@ -11,16 +11,29 @@ android {
         applicationId = "com.mudassir.ytdownloader"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        // Every CI build gets a higher number, so each new APK installs as an update.
+        val build = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
+        versionCode = 100 + build
+        versionName = "1.2.$build"
+    }
+
+    signingConfigs {
+        // A fixed key committed with the app. GitHub's runners make a brand-new debug key
+        // on every build, and Android refuses to update an app signed with a different key.
+        // Personal-use app only: this key is public, like a debug key.
+        create("personal") {
+            storeFile = file("ytdownloader.keystore")
+            storePassword = "ytdownloader"
+            keyAlias = "ytdownloader"
+            keyPassword = "ytdownloader"
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Personal-use app: sign release with the debug key so the APK installs directly.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("personal")
         }
     }
 
@@ -53,4 +66,14 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("androidx.preference:preference-ktx:1.2.1")
+    implementation("io.coil-kt:coil:2.7.0")
+
+    // Built-in player with background audio
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
+    implementation("androidx.media3:media3-ui:1.4.1")
+    implementation("androidx.media3:media3-session:1.4.1")
 }
