@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.mudassir.ytdownloader.DownloadItem
+import com.mudassir.ytdownloader.VideoEntry
 import com.mudassir.ytdownloader.DownloadOption
 import com.mudassir.ytdownloader.Kind
 import com.mudassir.ytdownloader.Queue
@@ -187,6 +188,12 @@ class GetViewModel(app: Application) : AndroidViewModel(app) {
             )
         )
         _toast.value = "Added to downloads"
+    }
+
+    /** Queues one video straight from a list (three-dots menu). [maxHeight] 0 = audio only. */
+    fun quickDownload(v: VideoEntry, maxHeight: Int) {
+        Queue.add(ctx, listOf(DownloadItem(url = v.url, title = v.title, thumbnail = v.thumbnail, maxHeight = maxHeight)))
+        _toast.value = if (maxHeight == 0) "Added to downloads (audio)" else "Added to downloads"
     }
 
     fun downloadSelected(maxHeight: Int, remember: Boolean) {

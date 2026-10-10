@@ -1,6 +1,8 @@
 package com.mudassir.ytdownloader.ui
 
 import android.content.ClipboardManager
+import android.content.Intent
+import android.content.ClipData
 import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -10,6 +12,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.isVisible
@@ -79,12 +82,15 @@ class GetFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, backCallback)
 
-        videos = VideoEntryAdapter { entry ->
-            when (vm.state.value) {
-                is GetState.Videos -> vm.toggle(entry.id)
-                else -> vm.openVideo(entry.url)
-            }
-        }
+        videos = VideoEntryAdapter(
+            onClick = { entry ->
+                when (vm.state.value) {
+                    is GetState.Videos -> vm.toggle(entry.id)
+                    else -> vm.openVideo(entry.url)
+                }
+            },
+            onMore = { entry, anchor -> showVideoMenu(entry, anchor) }
+        )
         headerAdapter = SingleViewAdapter(h.root)
         footerAdapter = SingleViewAdapter(footer.root).apply { shown = false }
         b.results.itemAnimator = null // header/footer views are reused; no remove/insert animations
@@ -338,6 +344,41 @@ class GetFragment : Fragment() {
             }
             else -> {}
         }
+    }
+
+    /** Three-dots menu on a video in search results, playlists and channels. */
+    private fun showVideoMenu(v: VideoEntry, anchor: View) {
+        val ctx = requireContext()
+        val default = Settings(ctx).defaultQuality
+        val label = qualities.firstOrNull { it.second == default }?.first ?: "${default}p"
+        PopupMenu(ctx, anchor).apply {
+            if (default > 0) menu.add(0, 1, 0, "Download ($label)")
+            menu.add(0, 2, 1, "Download audio only")
+            menu.add(0, 3, 2, "Choose quality…")
+            menu.add(0, 4, 3, "Share link")
+            menu.add(0, 5, 4, "Copy link")
+            setOnMenuItemClickListener {
+                when (it.itemId) {
+                    1 -> vm.quickDownload(v, default)
+                    2 -> vm.quickDownload(v, 0)
+                    3 -> vm.openVideo(v.url)
+                    4 -> startActivity(
+                        Intent.createChooser(
+                            Intent(Intent.ACTION_SEND).setType("text/plain")
+                                .putExtra(Intent.EXTRA_SUBJECT, v.title)
+                                .putExtra(Intent.EXTRA_TEXT, v.url),
+                            "Share link"
+                        )
+                    )
+                    5 -> {
+                        ctx.getSystemService(ClipboardManager::class.java)
+                            .setPrimaryClip(ClipData.newPlainText(v.title, v.url))
+                        toast("Link copied")
+                    }
+                }
+                true
+            }
+        }.show()
     }
 
     // ---------- helpers ----------

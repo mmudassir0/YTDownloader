@@ -31,7 +31,9 @@ class SingleViewAdapter(private val view: View) : RecyclerView.Adapter<RecyclerV
 
 /** Videos from a playlist, channel or search. Checkboxes show when [selectable]. */
 class VideoEntryAdapter(
-    private val onClick: (VideoEntry) -> Unit
+    private val onClick: (VideoEntry) -> Unit,
+    /** Three-dots button; gets the button so a menu can be anchored to it. */
+    private val onMore: (VideoEntry, View) -> Unit
 ) : ListAdapter<VideoEntry, VideoEntryAdapter.Holder>(DIFF) {
 
     var selectable = false
@@ -58,11 +60,16 @@ class VideoEntryAdapter(
         val v = getItem(position)
         val b = holder.b
         b.title.text = v.title
-        b.meta.text = listOf(v.uploader, formatDuration(v.durationSec)).filter { it.isNotBlank() }.joinToString(" · ")
+        b.meta.text = v.uploader
+        b.meta.isVisible = v.uploader.isNotBlank()
+        // Live streams and unknown lengths come as 0 or -1: no badge then.
+        b.duration.text = if (v.durationSec > 0) formatDuration(v.durationSec) else ""
+        b.duration.isVisible = v.durationSec > 0
         b.thumb.load(v.thumbnail) { crossfade(true) }
         b.check.isVisible = selectable
         b.check.isChecked = v.id in selected
         b.root.setOnClickListener { onClick(v) }
+        b.more.setOnClickListener { onMore(v, it) }
     }
 
     companion object {
