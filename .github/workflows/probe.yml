@@ -1,5 +1,7 @@
 name: PSX probe
 on: push
+permissions:
+  contents: write
 jobs:
   probe:
     runs-on: ubuntu-latest
@@ -13,7 +15,12 @@ jobs:
             code=$(curl -sS -L -A "$UA" -o "out/$f" -w "%{http_code} %{content_type} %{size_download}" "https://dps.psx.com.pk$p" || echo fail)
             echo "$p -> $code" | tee -a out/index.txt
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          name: psx
-          path: out
+          path: repo
+      - name: Commit samples
+        if: ${{ !contains(github.event.head_commit.message, 'samples') }}
+        run: |
+          cd repo && mkdir -p samples && cp ../out/* samples/ 2>/dev/null; cp ../out/_home samples/_home 2>/dev/null || true
+          git config user.name probe && git config user.email probe@users.noreply.github.com
+          git add samples && git commit -m "samples" && git push
