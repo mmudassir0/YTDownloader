@@ -10,7 +10,7 @@ jobs:
         run: |
           mkdir out
           UA="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36"
-          for p in "/" "/screener" "/indices" "/company/LUCK" "/timeseries/eod/LUCK" "/timeseries/int/LUCK" "/timeseries/eod/KSE100" "/timeseries/int/KSE100" "/market-watch" "/sector-summary" "/trading-board/REG/main"; do
+          for p in "/static/script.js?v=1.76" "/historical" "/graphical-view" "/sector-summary"; do
             f=$(echo "$p" | tr '/' '_'); [ "$f" = "_" ] && f="_home"
             code=$(curl -sS -L -A "$UA" -o "out/$f" -w "%{http_code} %{content_type} %{size_download}" "https://dps.psx.com.pk$p" || echo fail)
             echo "$p -> $code" | tee -a out/index.txt
