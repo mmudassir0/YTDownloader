@@ -1,0 +1,4 @@
+/static/script.js?v=1.76 -> 200 application/javascript 2809635
+/historical -> 200 text/html; charset=utf-8 49323
+/graphical-view -> 200 text/html; charset=utf-8 48182
+/sector-summary -> 200 text/html; charset=utf-8 47464
