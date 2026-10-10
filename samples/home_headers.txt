@@ -1,0 +1,21 @@
+HTTP/1.1 200 OK
+Server: nginx/1.20.2
+Date: Sat, 10 Oct 2026 12:58:26 GMT
+Content-Type: text/html; charset=utf-8
+Content-Length: 68216
+Connection: keep-alive
+Keep-Alive: timeout=20
+X-Frame-Options: SAMEORIGIN
+Strict-Transport-Security: max-age=15552000; includeSubdomains
+X-Permitted-Cross-Domain-Policies: none
+Referrer-Policy: strict-origin-when-cross-origin
+Feature-Policy: fullscreen 'none'; microphone 'none'
+X-Content-Type-Options: nosniff
+Content-Security-Policy: object-src 'self'; script-src 'self' 'unsafe-inline' https://www.google-analytics.com https://www.googletagmanager.com https://www.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com data:;img-src 'self' https://www.capitalstake.com https://www.google-analytics.com https://www.google.com.pk/ads; frame-ancestors 'self';
+Cache-Control: no-cache, private, no-store, must-revalidate, max-stale=0, post-check=0, pre-check=0
+X-Frame-Options: SAMEORIGIN
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: same-origin
+X-DIS-Request-ID: cc2859939975794905f566f127029059
+

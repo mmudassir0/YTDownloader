@@ -1,0 +1,10 @@
+token=Aw_AcY4Fsk0YAsCSq3nhOQZt0tqHWXNRwM15r5qV_yM
+/timeseries/eod/LUCK (token+cookie) -> 200 application/json; charset=utf-8 40007
+/timeseries/int/LUCK (token+cookie) -> 200 application/json; charset=utf-8 44154
+/timeseries/eod/KSE100 (token+cookie) -> 200 application/json; charset=utf-8 52986
+/timeseries/int/KSE100 (token+cookie) -> 200 application/json; charset=utf-8 34513
+/symbols (token+cookie) -> 200 application/json; charset=utf-8 135234
+/indices/KSE100 (token+cookie) -> 200 text/html; charset=utf-8 74105
+/trading-board/REG/main (token+cookie) -> 200 text/html; charset=utf-8 364037
+eod token-only -> 200 40007
+eod cookie-only -> 403 0
