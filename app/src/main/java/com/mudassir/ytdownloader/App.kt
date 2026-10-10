@@ -12,6 +12,9 @@ import org.schabi.newpipe.extractor.NewPipe
 class App : Application() {
     override fun onCreate() {
         super.onCreate()
+        // The crash screen runs in its own process: skip normal start-up there.
+        if (CrashReporter.isCrashProcess(this)) return
+        CrashReporter.install(this)
         NewPipe.init(OkHttpDownloader.instance)
         Store.init(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

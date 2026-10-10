@@ -46,6 +46,13 @@
             android:supportsPictureInPicture="false"
             android:theme="@style/Theme.YTDownloader.Player" />
 
+        <activity
+            android:name=".CrashActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:process=":crash"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
         <receiver
             android:name=".Queue$Control"
             android:exported="false" />
