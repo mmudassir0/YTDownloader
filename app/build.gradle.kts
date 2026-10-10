@@ -11,16 +11,29 @@ android {
         applicationId = "com.mudassir.ytdownloader"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        // Every CI build gets a higher number, so each new APK installs as an update.
+        val build = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
+        versionCode = 100 + build
+        versionName = "1.2.$build"
+    }
+
+    signingConfigs {
+        // A fixed key committed with the app. GitHub's runners make a brand-new debug key
+        // on every build, and Android refuses to update an app signed with a different key.
+        // Personal-use app only: this key is public, like a debug key.
+        create("personal") {
+            storeFile = file("ytdownloader.keystore")
+            storePassword = "ytdownloader"
+            keyAlias = "ytdownloader"
+            keyPassword = "ytdownloader"
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Personal-use app: sign release with the debug key so the APK installs directly.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("personal")
         }
     }
 

@@ -26,8 +26,10 @@ jobs:
         with:
           name: YTDownloader-apk
           path: YTDownloader.apk
-      # Publishes the APK as a "latest" release so it can be downloaded directly on a phone
+      # Publishes the APK as a "latest" release so it can be downloaded directly on a phone.
+      # Only builds of main are published; other branches just check that the app builds.
       - uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         with:
           tag_name: build-${{ github.run_number }}
           name: YT Downloader build ${{ github.run_number }}

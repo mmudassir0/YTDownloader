@@ -2,6 +2,7 @@ package com.mudassir.ytdownloader
 
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -15,22 +16,50 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Runs one download in the background (keeps going if you leave the app).
  * It re-reads the video page itself, because YouTube stream links expire after a few hours.
  * All downloads go through one queue, so a playlist downloads one video at a time.
+ *
+ * Important: a worker in the queue must never end in Result.failure() and must never be
+ * cancelled on its own, because WorkManager then cancels everything queued after it.
+ * So a failed or skipped video finishes as "success" (with an error in its output data)
+ * and the queue moves on to the next one.
  */
 class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
 
     private val nm = ctx.getSystemService(NotificationManager::class.java)
     private val notifId = id.hashCode()
 
-    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        val pageUrl = inputData.getString(K_URL) ?: return@withContext Result.failure()
+    private class Skipped : CancellationException("Skipped")
+
+    override suspend fun doWork(): Result = coroutineScope {
+        // Run the download as a child job so "Skip" can cancel just this video.
+        val job = async(Dispatchers.IO) { download() }
+        running[id] = job
+        try {
+            job.await()
+        } catch (e: CancellationException) {
+            if (isStopped) throw e // "Stop all" or system stop: let WorkManager handle it
+            done(inputData.getString(K_TITLE) ?: "Video", "Skipped")
+            Result.success(workDataOf("error" to "Skipped"))
+        } finally {
+            running.remove(id)
+        }
+    }
+
+    private suspend fun download(): Result = withContext(Dispatchers.IO) {
+        val pageUrl = inputData.getString(K_URL) ?: return@withContext fail("Video", "Missing link")
         val maxHeight = inputData.getInt(K_HEIGHT, 720)
         val prefix = inputData.getString(K_PREFIX)
         val subFolder = inputData.getString(K_FOLDER)
@@ -97,7 +126,7 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
             val folder = Storage.saveToDownloads(applicationContext, result, fileName, mime, subFolder)
             done(title, "Saved · ${formatBytes(result.length())} · $folder")
             Result.success()
-        } catch (e: kotlinx.coroutines.CancellationException) {
+        } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             if (runAttemptCount < 2) Result.retry() else fail(title, e.message ?: e.javaClass.simpleName)
@@ -106,9 +135,10 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
         }
     }
 
+    /** Reports the failure, but returns success so the rest of the queue keeps going. */
     private fun fail(title: String, why: String): Result {
         done(title, "Failed: $why")
-        return Result.failure(workDataOf("error" to why))
+        return Result.success(workDataOf("error" to why))
     }
 
     private fun done(title: String, text: String) {
@@ -135,10 +165,27 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
             .setOngoing(true)
             .setProgress(max, pct, max == 0)
             .setContentIntent(openApp())
-            .addAction(
-                android.R.drawable.ic_menu_close_clear_cancel, "Cancel",
-                WorkManager.getInstance(applicationContext).createCancelPendingIntent(id)
-            )
+            .addAction(android.R.drawable.ic_media_next, "Skip", controlIntent(ACTION_SKIP))
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop all", controlIntent(ACTION_STOP_ALL))
+
+    private fun controlIntent(action: String) = PendingIntent.getBroadcast(
+        applicationContext,
+        (action + id).hashCode(),
+        Intent(applicationContext, Control::class.java).setAction(action).putExtra(K_ID, id.toString()),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    )
+
+    /** Handles the notification buttons. */
+    class Control : BroadcastReceiver() {
+        override fun onReceive(ctx: Context, intent: Intent) {
+            when (intent.action) {
+                ACTION_SKIP -> intent.getStringExtra(K_ID)
+                    ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                    ?.let { running[it]?.cancel(Skipped()) }
+                ACTION_STOP_ALL -> WorkManager.getInstance(ctx).cancelUniqueWork(QUEUE)
+            }
+        }
+    }
 
     private fun foreground(title: String, text: String, pct: Int, max: Int): ForegroundInfo {
         val n = notification(title, text, pct, max).build()
@@ -159,7 +206,13 @@ class DownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
         private const val K_TITLE = "title"
         private const val K_PREFIX = "prefix"
         private const val K_FOLDER = "folder"
+        private const val K_ID = "id"
+        private const val ACTION_SKIP = "com.mudassir.ytdownloader.SKIP"
+        private const val ACTION_STOP_ALL = "com.mudassir.ytdownloader.STOP_ALL"
         const val QUEUE = "yt-queue"
+
+        /** Download jobs currently running in this process, by WorkManager id. */
+        private val running = ConcurrentHashMap<UUID, Deferred<Result>>()
 
         /** maxHeight: 0 = audio only, otherwise the highest resolution to allow (e.g. 1080). */
         fun enqueue(ctx: Context, url: String, title: String, maxHeight: Int, prefix: String? = null, folder: String? = null) {
